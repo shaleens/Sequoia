@@ -51,7 +51,7 @@ def getNounPhrases(sentence):
         | \.\.\.                # ellipsis
         | [][.,;"'?():-_`]      # these are separate tokens
     '''
-	#Taken from Su Nam Kim Paper...
+    #Taken from Su Nam Kim Paper...
     grammar = r"""
         NBAR:
             {<NN.*|JJ>*<NN.*>}  # Nouns and Adjectives, terminated with Nouns
@@ -66,13 +66,25 @@ def getNounPhrases(sentence):
     tree = npChunker.parse(posTokens)
     terms = get_terms(tree)
     for term in terms:
-    	nounPhrases.append(' '.join(term))
+        nounPhrases.append(' '.join(term))
     return nounPhrases
 
-def getLocation(chunked):
-    '''
+def getLocation(sentence):
+    ''' 
     Returns the location if at all it is specified in the chunked tags generated from nltk
     '''
+    nounPhrases = []
+    # Used when tokenizing words
+    sentence_re = r'''(?x)      # set flag to allow verbose regexps
+          ([A-Z])(\.[A-Z])+\.?  # abbreviations, e.g. U.S.A.
+        | \w+(-\w+)*            # words with optional internal hyphens
+        | \$?\d+(\.\d+)?%?      # currency and percentages, e.g. $12.40, 82%
+        | \.\.\.                # ellipsis
+        | [][.,;"'?():-_`]      # these are separate tokens
+    '''
+    toks = nltk.regexp_tokenize(sentence, sentence_re)
+    posTokens = nltk.tag.pos_tag(toks)
+    chunked = nltk.chunk.ne_chunk(posTags)
     namedEntities = []
     location = None
     for tree in chunked:
