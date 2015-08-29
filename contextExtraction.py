@@ -66,7 +66,7 @@ def getNounPhrases(sentence):
     tree = npChunker.parse(posTokens)
     terms = get_terms(tree)
     for term in terms:
-    	nounPhrases.extend(term)
+    	nounPhrases.append(' '.join(term))
     return nounPhrases
 
 def getLocation(chunked):
