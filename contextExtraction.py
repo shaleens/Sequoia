@@ -8,6 +8,7 @@ import nltk
 from urlparse import urlparse, parse_qs
 import web
 from nltk.corpus import wordnet
+import json
 
 
 lemmatizer = nltk.WordNetLemmatizer()
