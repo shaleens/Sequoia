@@ -16,12 +16,35 @@ urls = (
     '/getNounPhrases', 'GetNounPhrases',
     '/getLocation', 'GetLocation',
     '/getNormalizedWord', 'GetNormalizedWord',
-    '/getSynonyms', 'GetSynonyms'
+    '/getSynonyms', 'GetSynonyms',
+    '/getQuery', 'GetQuery'
 )
+
+filterTags = {
+    "AvgCustRating" : ["rating", "star"],
+    "Location" : ['location', 'place', 'city', 'country']
+}
+
+productTags = {
+    "ecommerce" : ["e-commerce", "online" "retail", "shopping", "ecommerce"],
+    "JavaScript Library" : ["JavaScript", "JS"]
+}
+
+sentence_re = r'''(?x)      # set flag to allow verbose regexps
+          ([A-Z])(\.[A-Z])+\.?  # abbreviations, e.g. U.S.A.
+        | \w+(-\w+)*            # words with optional internal hyphens
+        | \$?\d+(\.\d+)?%?      # currency and percentages, e.g. $12.40, 82%
+        | \.\.\.                # ellipsis
+        | [][.,;"'?():-_`]      # these are separate tokens
+        '''
 
 application = web.application(urls, globals())
 web.config.debug = True
 
+class GetQuery:
+	def GET(self):
+		params = web.input()
+		return json.dumps(analyzeQuery(params.name))
 class GetSynonyms:
     def GET(self):
         params = web.input()
@@ -79,14 +102,10 @@ def getNounPhrases(sentence):
     '''
     nounPhrases = []
     # Used when tokenizing words
-    sentence_re = r'''(?x)      # set flag to allow verbose regexps
-          ([A-Z])(\.[A-Z])+\.?  # abbreviations, e.g. U.S.A.
-        | \w+(-\w+)*            # words with optional internal hyphens
-        | \$?\d+(\.\d+)?%?      # currency and percentages, e.g. $12.40, 82%
-        | \.\.\.                # ellipsis
-        | [][.,;"'?():-_`]      # these are separate tokens
+    
     '''
     #Taken from Su Nam Kim Paper...
+    '''
     grammar = r"""
         NBAR:
             {<NN.*|JJ>*<NN.*>}  # Nouns and Adjectives, terminated with Nouns
@@ -122,14 +141,7 @@ def getChunkTrees(sentence):
     Returns the parse tree for the sentence
     '''
     nounPhrases = []
-    # Used when tokenizing words
-    sentence_re = r'''(?x)      # set flag to allow verbose regexps
-          ([A-Z])(\.[A-Z])+\.?  # abbreviations, e.g. U.S.A.
-        | \w+(-\w+)*            # words with optional internal hyphens
-        | \$?\d+(\.\d+)?%?      # currency and percentages, e.g. $12.40, 82%
-        | \.\.\.                # ellipsis
-        | [][.,;"'?():-_`]      # these are separate tokens
-    '''
+    
     toks = nltk.regexp_tokenize(sentence, sentence_re)
     posTokens = nltk.tag.pos_tag(toks)
     chunked = nltk.chunk.ne_chunk(posTokens)
@@ -180,6 +192,35 @@ def getHypernyms(word):
         for hypernymSynset in hypernymSynsets[0:limit]:
             hypernyms.update(hypernymSynset.lemma_names())
     return hypernyms
+
+def analyzeQuery(query):
+    answerhash = {}
+    answerhash['location'] = getLocation(query)
+    answerhash['filter'] = set()
+    answerhash['productType'] = set()
+    nounPhrases = getNounPhrases(query)
+    for phrase in nounPhrases:
+        for key in filterTags:
+            for term in filterTags[key]:
+                if(checkCongruence(term, phrase)):
+                    answerhash['filter'].add(key)
+        for key in productTags:
+            for term in productTags[key]:
+                if(checkCongruence(term, phrase)):
+                    answerhash['productType'].add(key)
+    answerhash['filter'] = list(answerhash['filter'])
+    answerhash['productType'] = list(answerhash['productType'])
+    return answerhash
+
+def checkCongruence(term, phrase):
+    for word in nltk.regexp_tokenize(phrase, sentence_re):
+        similarToTerm = getSynonyms(term) | getHypernyms(term) | getHyponyms(term) | set([term])
+        similarToWord = getSynonyms(word) | getHypernyms(word) | getHyponyms(word) | set([word])
+        similarToTerm = set([normalise(text.replace('_', ' ').lower()) for text in similarToTerm])
+        similarToWord = set([normalise(text.replace('_', ' ').lower()) for text in similarToWord])
+        if any(st in similarToTerm for st in similarToWord):
+            return True
+    return False
 
 if __name__ == '__main__':
     application.run()
