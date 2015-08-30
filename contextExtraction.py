@@ -1,14 +1,49 @@
+#!/usr/bin/env python
+
 '''
 Sequoia hack nlp engine for context extraction from search queries.
 '''
 
 import nltk
-
+from urlparse import urlparse, parse_qs
+import web
+from nltk.corpus import wordnet
 
 
 lemmatizer = nltk.WordNetLemmatizer()
 stemmer = nltk.stem.porter.PorterStemmer()
+urls = (
+    '/getNounPhrases', 'GetNounPhrases',
+    '/getLocation', 'GetLocation',
+    '/getNormalizedWord', 'GetNormalizedWord',
+    '/getSynonyms', 'GetSynonyms'
+)
 
+application = web.application(urls, globals())
+web.config.debug = True
+
+class GetSynonyms:
+    def GET(self):
+        params = web.input()
+        return getSynonyms(params.name)
+class GetNounPhrases:
+    def GET(self):
+        params = web.input()
+        return getNounPhrases(params.name)
+
+class GetLocation:
+    def GET(self):
+        params = web.input()
+        return getLocation(params.name)
+
+class GetNormalizedWord:
+    def GET(self):
+        params = web.input()
+        return normalise(params.name)
+
+
+
+##### METHOD IMPLEMENTATIONS
 
 def leaves(tree):
     """Finds NP (nounphrase) leaf nodes of a chunk tree."""
@@ -73,6 +108,19 @@ def getLocation(sentence):
     ''' 
     Returns the location if at all it is specified in the chunked tags generated from nltk
     '''
+    chunked = getChunkTrees(sentence)
+    location = None
+    for tree in chunked:
+        if hasattr(tree, 'label'):
+            label = tree.label()
+            if label == 'GPE' or label == 'LOCATION':
+                location = tree[0][0]
+    return location
+
+def getChunkTrees(sentence):
+    ''' 
+    Returns the parse tree for the sentence
+    '''
     nounPhrases = []
     # Used when tokenizing words
     sentence_re = r'''(?x)      # set flag to allow verbose regexps
@@ -84,12 +132,54 @@ def getLocation(sentence):
     '''
     toks = nltk.regexp_tokenize(sentence, sentence_re)
     posTokens = nltk.tag.pos_tag(toks)
-    chunked = nltk.chunk.ne_chunk(posTags)
-    namedEntities = []
-    location = None
-    for tree in chunked:
-        if hasattr(tree, 'label'):
-            label = tree.label()
-            if label == 'GPE' or label == 'LOCATION':
-                location = tree[0][0]
-    return location
+    chunked = nltk.chunk.ne_chunk(posTokens)
+    return chunked
+
+
+def getSynonyms(word):
+    synonyms = set()
+    synsets = wordnet.synsets(word)
+    if len(synsets) > 2:
+        limit = 2
+    else:
+        limit = len(synsets)
+    for synset in synsets[0:limit]:
+        synonyms.update(synset.lemma_names())
+    return synonyms
+
+def getHyponyms(word):
+    hyponyms = set()
+    synsets = wordnet.synsets(word)
+    if len(synsets) > 2:
+        limit = 2
+    else:
+        limit = len(synsets)
+    for synset in synsets[0:limit]:
+        hyponymSynsets = synset.hyponyms()
+        if len(synsets) > 2:
+            limit = 2
+        else:
+            limit = len(synsets)
+        for hyponymSynset in hyponymSynsets[0:limit]:
+            hyponyms.update(hyponymSynset.lemma_names())
+    return hyponyms
+
+def getHypernyms(word):
+    hypernyms = set()
+    synsets = wordnet.synsets(word)
+    if len(synsets) > 2:
+        limit = 2
+    else:
+        limit = len(synsets)
+    for synset in synsets[0:limit]:
+        hypernymSynsets = synset.hypernyms()
+        if len(synsets) > 2:
+            limit = 2
+        else:
+            limit = len(synsets)
+        for hypernymSynset in hypernymSynsets[0:limit]:
+            hypernyms.update(hypernymSynset.lemma_names())
+    return hypernyms
+
+if __name__ == '__main__':
+    application.run()
